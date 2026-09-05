@@ -6,6 +6,10 @@ Usage:
   python cli.py match --treatment 1 1 0 0 1 0 --covariates '[[0.5,65],[1.2,70],[0.8,55],[1.5,60],[0.3,72],[1.1,68]]'
   python cli.py balance --treatment 1 1 0 0 1 0 --covariates '[[0.5],[1.2],[0.8],[1.5],[0.3],[1.1]]'
   python cli.py batch --input sample.csv --output results.csv
+  python cli.py ps --treatment 1 1 0 0 --covariates '[[0.5],[1.2],[0.8],[1.5]]'
+  python cli.py audit --task-id TASK-001
+  python cli.py chat "Explain the methodology"
+  python cli.py verify-audit
 """
 
 import argparse
@@ -19,6 +23,10 @@ from ps_matcher import (
     summary,
     process_csv,
 )
+
+from agents.supervisor import SystemSupervisor
+from agents.base import AuditLogger
+from agents.models import SystemTaskPayload
 
 
 def main(argv=None):
@@ -57,6 +65,20 @@ def main(argv=None):
     p_batch.add_argument("--method", choices=["nearest", "optimal", "stratification"], default="nearest")
     p_batch.add_argument("--caliper", type=float, default=0.2)
 
+    # --- audit ---
+    p_audit = sub.add_parser("audit", help="Run audit task through supervisor")
+    p_audit.add_argument("--task-id", required=True, help="Task identifier")
+    p_audit.add_argument("--target", default="GENERIC-TARGET", help="Target identifier")
+    p_audit.add_argument("--primary", type=float, default=10.0, help="Primary metric")
+    p_audit.add_argument("--secondary", type=float, default=5.0, help="Secondary metric")
+
+    # --- chat ---
+    p_chat = sub.add_parser("chat", help="Supervisory LLM chat")
+    p_chat.add_argument("query", nargs="+", help="Query text for the supervisor")
+
+    # --- verify-audit ---
+    sub.add_parser("verify-audit", help="Verify HMAC audit trail integrity")
+
     args = parser.parse_args(argv)
 
     if args.command == "match":
@@ -93,6 +115,31 @@ def main(argv=None):
         result = process_csv(args.input, args.output, method=args.method, caliper=args.caliper)
         print(f"Processed {result['n_treated']} treated + {result['n_control']} control -> {args.output}")
         return 0
+
+    elif args.command == "audit":
+        supervisor = SystemSupervisor(model_provider="mock")
+        payload = SystemTaskPayload(
+            task_id=args.task_id,
+            target_identifier=args.target,
+            primary_metric=args.primary,
+            secondary_metric=args.secondary,
+        )
+        dossier = supervisor.process_task(payload)
+        print(json.dumps(dossier.to_dict(), indent=2, default=str))
+        return 0
+
+    elif args.command == "chat":
+        supervisor = SystemSupervisor(model_provider="mock")
+        query = " ".join(args.query)
+        response = supervisor.query_supervisory_chat(query)
+        print(response)
+        return 0
+
+    elif args.command == "verify-audit":
+        valid = AuditLogger.verify_integrity()
+        print(f"Audit trail integrity: {'VALID' if valid else 'INVALID'}")
+        print(f"Audit blocks: {len(AuditLogger.get_trail())}")
+        return 0 if valid else 1
 
     parser.print_help()
     return 1

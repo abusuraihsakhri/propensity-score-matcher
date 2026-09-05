@@ -200,7 +200,6 @@ def nearest_neighbor_match(
 
     # Sort treated by propensity score (optional, helps with greedy matching)
     for ti in treated_idx:
-        matches_found = 0
         # Find closest control(s)
         candidates = []
         for ci in available_control:
@@ -214,13 +213,8 @@ def nearest_neighbor_match(
             matched_pairs.append((ti, ci))
             matched_treated.add(ti)
             matched_control.add(ci)
-            matches_found += 1
             if not replace:
                 available_control.discard(ci)
-
-        if matches_found > 0 and not replace:
-            # Remove matched controls from available set
-            pass
 
     return {
         "matched_pairs": matched_pairs,
@@ -597,9 +591,15 @@ def process_csv(input_path: str, output_path: str, method: str = "nearest", cali
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
+    if not fieldnames:
+        raise ValueError("CSV file has no headers")
+
     treatment_col = _find_col(fieldnames, ["treatment", "treated", "group", "arm", "exposure"])
+    if treatment_col is None:
+        raise ValueError(f"No treatment column found. Expected one of: treatment, treated, group, arm, exposure. Got: {fieldnames}")
+
     outcome_col = _find_col(fieldnames, ["outcome", "y", "result", "response"])
-    covariate_cols = [c for c in fieldnames if c not in (treatment_col, outcome_col)]
+    covariate_cols = [c for c in fieldnames if c != treatment_col and c != outcome_col]
 
     treatment = [int(float(r[treatment_col])) for r in rows]
     outcome = [float(r[outcome_col]) for r in rows] if outcome_col in fieldnames else None
@@ -681,12 +681,12 @@ def _norm_cdf(x: float) -> float:
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
 
-def _find_col(fieldnames: List[str], candidates: List[str]) -> str:
+def _find_col(fieldnames: List[str], candidates: List[str]) -> Optional[str]:
     lower_map = {c.lower(): c for c in fieldnames}
     for cand in candidates:
         if cand.lower() in lower_map:
             return lower_map[cand.lower()]
-    return fieldnames[0]
+    return None
 
 
 def _solve_linear_system(A: List[List[float]], b: List[float]) -> List[float]:

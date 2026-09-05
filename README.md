@@ -1,7 +1,6 @@
 # Propensity Score Matcher
 
-> **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
+> **Domain:** Clinical Decision Support & Biomedical Computing
 
 <div align="center">
 
@@ -16,23 +15,22 @@
 
 ---
 
-## 📖 What It Does
+## Overview
 
-Propensity Score Matcher
+Propensity Score Matcher is a Python library for estimating treatment effects from observational data using propensity score methods. It provides:
 
-Real implementation of:
-  - Logistic regression for propensity score estimation (IRLS/Newton-Raphson)
-  - Matching algorithms:
-    - Nearest neighbor (with caliper)
-    - Optimal matching (greedy)
-    - Stratification
-  - Balance assessment: standardized mean difference (SMD)
-    - SMD < 0.1: good balance
-  - Covariate balance checking
-  - ATT, ATC, ATE estimation
-  - Matching with/without replacement
+- **Logistic regression** for propensity score estimation (IRLS/Newton-Raphson)
+- **Matching algorithms:**
+  - Nearest neighbor (with caliper)
+  - Optimal matching (greedy)
+  - Stratification
+- **Balance assessment** using standardized mean difference (SMD)
+  - SMD < 0.1 indicates good balance
+- **Covariate balance checking** before and after matching
+- **Treatment effect estimation** (ATT, ATC, ATE)
+- **Matching with/without replacement**
 
-Pure Python stdlib — no external dependencies.
+The core algorithm (`ps_matcher.py`) uses only Python stdlib — no external dependencies required.
 
 ---
 
@@ -137,47 +135,72 @@ dict with keys:
 
 ## 💻 CLI Quickstart & Usage
 
-### 1. Guided Interactive Mode
+### Installation
 ```bash
-python cli.py
+pip install -e .
 ```
 
-### 2. Direct Parameterized Evaluation
+### Commands
+
+#### Match - Run propensity score matching
 ```bash
-python cli.py --treatment <value> --covariates <value> --input <value> --output <value>
+python cli.py match --treatment 1 1 0 0 1 0 --covariates '[[0.5,65],[1.2,70],[0.8,55],[1.5,60],[0.3,72],[1.1,68]]'
 ```
 
-### Parameter Reference
-- `--treatment`: Specifies input measurement or parameter value.
-- `--covariates`: Specifies input measurement or parameter value.
-- `--input`: Specifies input measurement or parameter value.
-- `--output`: Specifies input measurement or parameter value.
-- `---`: Specifies input measurement or parameter value.
-- `--outcome`: Specifies input measurement or parameter value.
-- `--method`: Specifies input measurement or parameter value.
-- `--caliper`: Specifies input measurement or parameter value.
-- `--replace`: Specifies input measurement or parameter value.
-- `--labels`: Specifies input measurement or parameter value.
+With outcome for treatment effect estimation:
+```bash
+python cli.py match --treatment 1 1 0 0 --covariates '[[0.5],[1.2],[0.8],[1.5]]' --outcome 12.5 10.2 8.1 9.5
+```
 
-### Input Data Schema
+#### Balance - Check covariate balance
+```bash
+python cli.py balance --treatment 1 1 0 0 1 0 --covariates '[[0.5],[1.2],[0.8],[1.5],[0.3],[1.1]]'
+```
+
+#### PS - Estimate propensity scores only
+```bash
+python cli.py ps --treatment 1 1 0 0 --covariates '[[0.5],[1.2],[0.8],[1.5]]'
+```
+
+#### Batch - Process CSV file
+```bash
+python cli.py batch --input sample.csv --output results.csv
+```
+
+#### Audit - Run audit task through supervisor
+```bash
+python cli.py audit --task-id TASK-001
+```
+
+#### Chat - Supervisory LLM chat
+```bash
+python cli.py chat "Explain the methodology"
+```
+
+#### Verify-audit - Verify HMAC audit trail integrity
+```bash
+python cli.py verify-audit
+```
+
+### Input Data Schema (CSV)
 
 | Field | Description | Requirement |
 |:------|:------------|:------------|
-| `treatment` | Parameter / observation metric | Required |
-| `age` | Parameter / observation metric | Required |
-| `income` | Parameter / observation metric | Required |
-| `education` | Parameter / observation metric | Required |
-| `outcome` | Parameter / observation metric | Required |
+| `treatment` | Treatment indicator (1=treated, 0=control) | Required |
+| `age` | Covariate | Optional |
+| `income` | Covariate | Optional |
+| `education` | Covariate | Optional |
+| `outcome` | Outcome variable for effect estimation | Optional |
 
 ---
 
 ## 🛡️ Security & Enterprise Architecture
 
-* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
+* **Zero-PHI Outbound Interceptor:** Active regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
+* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition. Configure via `AUDIT_SECRET_KEY` environment variable.
+* **LLM Integration:** Agnostic integration for local Ollama instances, Claude, OpenAI, and deterministic test mocks.
+* **FastAPI REST API:** Exposes endpoints at `/health`, `/metrics`, `/api/audit`, `/api/chat`, and `/api/audit/logs`.
+* **Prometheus Metrics:** Operational metrics available via the `/metrics` endpoint.
 
 ---
 

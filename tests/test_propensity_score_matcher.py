@@ -23,6 +23,12 @@ def test_phi_guard_enforcement():
     PHIGuard.assert_no_phi("Analytical assay specimen KEY-001 optimal")
 
 
+def test_phi_guard_redaction():
+    redacted = PHIGuard.redact_phi("Contact patient at 555-123-4567")
+    assert "555-123-4567" not in redacted
+    assert "REDACTED" in redacted
+
+
 def test_specialized_workers():
     # Worker 1: QC Invariant
     p1 = SystemTaskPayload(task_id="T1", target_identifier="KEY-01", primary_metric=35.0)
@@ -63,3 +69,30 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+def test_cli_match_command():
+    result = main([
+        "match",
+        "--treatment", "1", "1", "0", "0",
+        "--covariates", "[[0.5],[1.2],[0.8],[1.5]]"
+    ])
+    assert result == 0
+
+
+def test_cli_balance_command():
+    result = main([
+        "balance",
+        "--treatment", "1", "1", "0", "0",
+        "--covariates", "[[0.5],[1.2],[0.8],[1.5]]"
+    ])
+    assert result == 0
+
+
+def test_cli_ps_command():
+    result = main([
+        "ps",
+        "--treatment", "1", "1", "0", "0",
+        "--covariates", "[[0.5],[1.2],[0.8],[1.5]]"
+    ])
+    assert result == 0
