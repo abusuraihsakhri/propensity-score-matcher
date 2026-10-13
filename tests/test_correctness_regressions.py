@@ -102,3 +102,24 @@ def test_cli_honors_selected_matching_method(capsys):
     ]
     assert main(args) == 0
     assert "Method: stratification" in capsys.readouterr().out
+
+
+def test_postmatch_smd_uses_baseline_scale_even_for_one_pair():
+    balance = covariate_balance(
+        [1, 1, 0, 0], [[1.0], [3.0], [2.0], [4.0]], matched_pairs=[(0, 2)]
+    )["balance"][0]
+    assert abs(balance["smd_after"] - (1 / math.sqrt(2))) < 0.0001
+
+
+def test_postmatch_smd_uses_one_weight_per_treated():
+    balance = covariate_balance(
+        [1, 1, 0, 0, 0], [[2.0], [10.0], [2.0], [8.0], [4.0]],
+        matched_pairs=[(0, 2), (0, 4), (1, 3)],
+    )["balance"][0]
+    # Mean treated (2 + 10)/2 = 6, mean matched controls ((2+4)/2 + 8)/2 = 5.5.
+    # Variances: treated 32, controls 28/3; pooled SD = sqrt(62/3 / 2)? computed dynamically.
+    t, c = [2.0, 10.0], [2.0, 8.0, 4.0]
+    sd_t = sum((v - sum(t)/len(t))**2 for v in t) / (len(t)-1)
+    sd_c = sum((v - sum(c)/len(c))**2 for v in c) / (len(c)-1)
+    expected = 0.5 / math.sqrt((sd_t + sd_c)/2)
+    assert abs(balance["smd_after"] - expected) < 0.0001
