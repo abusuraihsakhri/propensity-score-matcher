@@ -103,6 +103,7 @@ def logistic_regression(
 
     # Initialize beta to zeros
     beta = [0.0] * p
+    converged = False
 
     for iteration in range(max_iter):
         # Compute predicted probabilities
@@ -128,16 +129,22 @@ def logistic_regression(
         try:
             delta = _solve_linear_system(hess, neg_grad)
         except ValueError as exc:
-            raise ValueError(
-                "Propensity score regression has a singular design matrix; "
-                "remove redundant covariates or reduce model complexity"
-            ) from exc
+            if iteration == 0:
+                raise ValueError(
+                    "Propensity score regression has a singular design matrix; "
+                    "remove redundant covariates or reduce model complexity"
+                ) from exc
+            # Perfect/quasi separation can render the Hessian singular
+            # after several iterations. Retain the last finite estimate
+            # but make non-convergence explicit in the result.
+            break
 
         beta_new = [beta[j] + delta[j] for j in range(p)]
 
         # Check convergence
         if all(abs(delta[j]) < tol for j in range(p)):
             beta = beta_new
+            converged = True
             break
         beta = beta_new
 
@@ -158,6 +165,10 @@ def logistic_regression(
         "probabilities": probs,
         "log_likelihood": ll,
         "iterations": iteration + 1,
+        "converged": converged,
+        "warning": None if converged else (
+            "Logistic IRLS did not converge; possible separation or unstable model"
+        ),
     }
 
 
@@ -301,12 +312,14 @@ def optimal_match(
     if not treated_idx or not control_idx:
         return {"matched_pairs": [], "matched_treated": [], "matched_control": [], "n_matched": 0}
 
-    # Compute all pairwise distances
+    # Match using the same standardized logit distance as nearest neighbor.
+    logits = [_logit(max(1e-6, min(1 - 1e-6, ps))) for ps in propensity_scores]
+    limit = caliper * _std(logits) if math.isfinite(caliper) else float("inf")
     distances = []
     for ti in treated_idx:
         for ci in control_idx:
-            dist = abs(propensity_scores[ti] - propensity_scores[ci])
-            if dist <= caliper:
+            dist = abs(logits[ti] - logits[ci])
+            if dist <= limit:
                 distances.append((dist, ti, ci))
 
     # Sort by distance (greedy)
@@ -620,7 +633,7 @@ def propensity_score_match(
     if method == "nearest":
         match_result = nearest_neighbor_match(treatment, ps, caliper=caliper, replace=replace, ratio=ratio)
     elif method == "optimal":
-        match_result = optimal_match(treatment, ps, caliper=caliper if caliper < 1 else float('inf'))
+        match_result = optimal_match(treatment, ps, caliper=caliper)
     elif method == "stratification":
         strat_result = stratification_match(treatment, ps, n_strata=n_strata)
         match_result = {"matched_pairs": [], "strata": strat_result}
