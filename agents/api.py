@@ -2,7 +2,11 @@
 FastAPI REST API Server for Propensity Score Matcher.
 """
 from typing import Dict, Any, List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+from .base import SecurityException
 from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
 from .models import SystemTaskPayload, ConsensusDossier
@@ -53,3 +57,17 @@ def api_chat(req: ChatRequest):
 @app.get("/api/audit/logs")
 def api_audit_logs():
     return {"audit_trail": AuditLogger.get_trail(), "verified": AuditLogger.verify_integrity()}
+
+
+@app.exception_handler(SecurityException)
+async def blocked_identifier(request: Request, exc: SecurityException):
+    return JSONResponse(status_code=400, content={"detail": "Input contains a potentially sensitive identifier"})
+
+
+@app.get("/ps_matcher.py", include_in_schema=False)
+def browser_matching_source():
+    return FileResponse(Path(__file__).resolve().parent.parent / "ps_matcher.py", media_type="text/x-python")
+
+
+# Mount last so API endpoints take precedence.
+app.mount("/", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "web"), html=True), name="web")

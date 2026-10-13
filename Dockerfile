@@ -9,11 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file if it exists, otherwise install directly
-COPY requirements*.txt pyproject.toml* ./
-RUN pip install --no-cache-dir fastapi uvicorn pydantic pytest
-
 COPY . .
+RUN pip install --no-cache-dir ".[web]"
 
 EXPOSE 8000
 

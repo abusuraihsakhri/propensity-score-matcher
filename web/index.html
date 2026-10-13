@@ -1,236 +1,99 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Propensity Score Matcher — Operations Console</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #090d16;
-            --card: #111827;
-            --border: #1f293d;
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.25);
-            --text: #f3f4f6;
-            --text-muted: #9ca3af;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            padding: 2rem;
-            min-height: 100vh;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .header-title h1 { font-size: 1.6rem; font-weight: 700; color: #fff; }
-        .header-title p { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem; }
-        .badge {
-            display: inline-block;
-            padding: 0.3rem 0.8rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: var(--accent-glow);
-            color: var(--accent);
-            border: 1px solid var(--accent);
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr;
-            gap: 1.5rem;
-        }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-        .card h2 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .form-group { margin-bottom: 1rem; }
-        label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
-        input, select, textarea {
-            width: 100%;
-            padding: 0.65rem 0.9rem;
-            background: #0d1322;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: #fff;
-            font-family: inherit;
-            font-size: 0.9rem;
-        }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-        .btn {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            padding: 0.7rem 1.4rem;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-            width: 100%;
-        }
-        .btn:hover { background: #2563eb; }
-        .terminal {
-            background: #060911;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: #10b981;
-            height: 380px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
-        .metrics-bar {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        .metric-box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-        }
-        .metric-val { font-size: 1.4rem; font-weight: 700; color: #fff; margin-top: 0.25rem; }
-        .metric-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Propensity Score Matcher</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#151e30;--edge:#344158;--text:#eff4ff;--muted:#b9c6dc;--accent:#70acff;--err:#ffb0a3}
+    *{box-sizing:border-box}
+    body{font:15px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);margin:0}
+    main{max-width:1190px;margin:auto;padding:25px 20px 55px}
+    header{margin-bottom:20px}
+    h1{font-size:clamp(1.65rem,4vw,2.4rem);margin:0 0 7px}
+    h2{font-size:1.15rem;margin:0 0 14px}
+    p{margin:8px 0;color:var(--muted)}
+    .layout{display:grid;grid-template-columns:minmax(290px,0.9fr) minmax(340px,1.3fr);gap:16px}
+    .panel{background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:20px;min-width:0}
+    label{display:block;font-weight:600;margin:11px 0 5px}
+    input,select,textarea,button{font:inherit}
+    input[type=file],input[type=number],select,textarea{width:100%;border-radius:6px;border:1px solid var(--edge);padding:10px;background:#0c1525;color:var(--text)}
+    textarea{min-height:190px;resize:vertical;font:12px/1.5 ui-monospace,monospace;white-space:pre}
+    button{border-radius:7px;padding:10px 15px;cursor:pointer;background:var(--accent);border:1px solid var(--accent);color:#071329;font-weight:650}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    button.secondary{background:transparent;color:var(--accent)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin:13px 0}
+    .options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+    .check{display:flex;align-items:center;gap:10px;font-weight:normal;margin:16px 0}
+    .check input{width:auto}
+    .status{padding:10px;border-radius:7px;border:1px solid var(--edge);color:var(--muted);margin-top:10px;white-space:pre-wrap}
+    .status.error{color:var(--err);border-color:#9c483e}
+    .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .stat{background:#0c1525;border-radius:8px;padding:12px}
+    .stat strong{display:block;font-size:1.4rem}
+    .stat small{color:var(--muted)}
+    .scroll{overflow-x:auto;max-height:310px;margin-bottom:16px}
+    table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:13px}
+    th,td{text-align:left;border-bottom:1px solid var(--edge);padding:8px 10px;white-space:nowrap}
+    th{color:var(--muted)}
+    .caption{font-size:13px}
+    :focus-visible{outline:3px solid #f5ca6b;outline-offset:2px}
+    [hidden]{display:none!important}
+    @media(max-width:850px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:440px){.options{grid-template-columns:1fr}.stats{gap:5px}.stat{padding:8px}.stat strong{font-size:1.1rem}}
+  </style>
 </head>
 <body>
-
-    <div class="header">
-        <div class="header-title">
-            <h1>Propensity Score Matcher</h1>
-            <p>Domain: Clinical & Cryptographic AI | Standard: CAP / CLSI / NIST Standards | LabMind-Atlas Architecture</p>
-        </div>
-        <div>
-            <span class="badge">Air-Gapped Active</span>
-            <span class="badge" style="background: rgba(16,185,129,0.2); color: #10b981; border-color: #10b981;">Zero-PHI Guard Active</span>
-        </div>
-    </div>
-
-    <div class="metrics-bar">
-        <div class="metric-box">
-            <div class="metric-label">System Status</div>
-            <div class="metric-val" style="color: var(--success);" id="m-status">OPTIMAL</div>
-        </div>
-        <div class="metric-box">
-            <div class="metric-label">Tasks Processed</div>
-            <div class="metric-val" id="m-tasks">142</div>
-        </div>
-        <div class="metric-box">
-            <div class="metric-label">Audit Blocks Signed</div>
-            <div class="metric-val" id="m-audit">142</div>
-        </div>
-        <div class="metric-box">
-            <div class="metric-label">PHI Interceptions</div>
-            <div class="metric-val" style="color: var(--accent);" id="m-phi">0</div>
-        </div>
-    </div>
-
-    <div class="grid">
-        <div class="card">
-            <h2>⚙️ Dispatch Distributed Component Audit</h2>
-            <div class="form-group">
-                <label>Task / Sample ID</label>
-                <input type="text" id="task_id" value="TASK-2026-LIVE-01">
-            </div>
-            <div class="form-group">
-                <label>Target Identifier</label>
-                <input type="text" id="target_id" value="SPECIMEN-ALPHA-77">
-            </div>
-            <div class="form-group">
-                <label>Primary Measurement / Value</label>
-                <input type="number" id="primary_metric" value="29.4" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>Secondary Metric / Kinetic Index</label>
-                <input type="number" id="secondary_metric" value="14.8" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>Status / Phenotype Descriptor</label>
-                <input type="text" id="status_descriptor" value="DISCORDANT_ANOMALY">
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="is_critical" checked> Trigger Emergency / Critical Flag</label>
-            </div>
-            <button class="btn" onclick="runAudit()">Execute Distributed Component Audit</button>
-        </div>
-
-        <div class="card">
-            <h2>📊 Real-Time Consensus Dossier & Audit Log</h2>
-            <div class="terminal" id="outputConsole">// Propensity Score Matcher Operations Console Ready
-// Connection established with Air-Gapped Supervisor
-// Cryptographic HMAC-SHA256 audit ledger loaded.
-// Ready for live task payload dispatch...</div>
-        </div>
-    </div>
-
-    <script>
-        async function runAudit() {
-            const consoleEl = document.getElementById('outputConsole');
-            consoleEl.innerText = "// Dispatching task across specialized workers...
-// Invoking InvariantQCWorker, SafetyEscalationWorker, ProtocolWorker...";
-
-            const payload = {
-                task_id: document.getElementById('task_id').value,
-                target_identifier: document.getElementById('target_id').value,
-                primary_metric: parseFloat(document.getElementById('primary_metric').value),
-                secondary_metric: parseFloat(document.getElementById('secondary_metric').value),
-                status_descriptor: document.getElementById('status_descriptor').value,
-                is_critical_flag: document.getElementById('is_critical').checked
-            };
-
-            try {
-                const res = await fetch('/api/audit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                consoleEl.innerText = JSON.stringify(data, null, 2);
-                document.getElementById('m-tasks').innerText = parseInt(document.getElementById('m-tasks').innerText) + 1;
-                document.getElementById('m-audit').innerText = parseInt(document.getElementById('m-audit').innerText) + 1;
-            } catch (err) {
-                consoleEl.innerText = "// Offline / Simulation Output:\n" + JSON.stringify({
-                    dossier_id: "DOSSIER-SIM-" + Math.floor(Math.random()*10000),
-                    system: "propensity-score-matcher",
-                    domain: "Clinical & Cryptographic AI",
-                    task_id: payload.task_id,
-                    overall_urgency: payload.is_critical_flag ? "CRITICAL_STAT_PANIC" : "ELEVATED_RISK",
-                    integrity_status: "DISCORDANT_ANOMALY",
-                    alerts: [
-                        { worker: "InvariantQCWorker", alert: "Primary metric exceeds upper reference bound" },
-                        { worker: "SafetyEscalationWorker", alert: "Critical emergency interlock flag active" }
-                    ],
-                    audit_hash: "HMAC_SHA256_e83f9a72b941d6c381f9"
-                }, null, 2);
-            }
-        }
-    </script>
+<main>
+  <header>
+    <h1>Propensity Score Matcher</h1>
+    <p>Nearest-neighbor and greedy matching, propensity-score strata, and covariate balance — powered by Python in your browser.</p>
+    <p class="caption">Local analysis: your CSV stays in the browser. Pyodide runtime files load from a third-party CDN on first use. Use de-identified research data only.</p>
+  </header>
+  <div class="layout">
+    <section class="panel" aria-labelledby="input-heading">
+      <h2 id="input-heading">Dataset & settings</h2>
+      <label for="dataset">CSV file (optional)</label>
+      <input id="dataset" type="file" accept=".csv,text/csv">
+      <label for="csv">CSV contents</label>
+      <textarea id="csv" spellcheck="false" aria-describedby="csv-help"></textarea>
+      <p class="caption" id="csv-help">Required: <code>treatment</code> (0/1). Optional: <code>outcome</code>. Every other column is treated as a numeric covariate. Header names are case-insensitive. Missing values are rejected.</p>
+      <button type="button" class="secondary" id="sample">Restore example</button>
+      <div class="options">
+        <div><label for="method">Method</label><select id="method">
+          <option value="nearest">Nearest neighbor</option>
+          <option value="optimal">Greedy global pairs</option>
+          <option value="stratification">Propensity strata</option>
+        </select></div>
+        <div><label for="caliper">Caliper (SD logit PS)</label><input id="caliper" type="number" min="0" step="0.05" value="0.2" required></div>
+        <div><label for="ratio">Controls per treated</label><input id="ratio" type="number" min="1" step="1" value="1" required></div>
+        <div><label for="strata">Number of strata</label><input id="strata" type="number" min="1" step="1" value="5" required></div>
+      </div>
+      <label class="check"><input id="replace" type="checkbox"> Allow control reuse (nearest only)</label>
+      <div class="actions">
+        <button id="run" type="button">Run analysis</button>
+        <button id="download" type="button" class="secondary" disabled>Export matched CSV</button>
+      </div>
+      <div role="status" aria-live="polite" id="status" class="status">Ready. The Python runtime loads on the first analysis.</div>
+    </section>
+    <section class="panel" aria-labelledby="results-heading">
+      <h2 id="results-heading">Results</h2>
+      <div class="stats">
+        <div class="stat"><strong id="treated">—</strong><small>Treated</small></div>
+        <div class="stat"><strong id="controls">—</strong><small>Controls</small></div>
+        <div class="stat"><strong id="pairs">—</strong><small>Matched pairs</small></div>
+      </div>
+      <p class="caption" id="summary">Run an analysis to see results.</p>
+      <h2>Covariate balance</h2>
+      <div class="scroll"><table><thead><tr><th>Covariate</th><th>SMD before</th><th>SMD after</th></tr></thead><tbody id="balance"></tbody></table></div>
+      <h2>Propensity-score strata</h2>
+      <div class="scroll"><table><thead><tr><th>Stratum</th><th>Treated</th><th>Control</th><th>Mean PS (treated)</th><th>Mean PS (control)</th></tr></thead><tbody id="strata-table"></tbody></table></div>
+      <h2>Pair indices (zero-based)</h2>
+      <div class="scroll"><table><thead><tr><th>Treated</th><th>Control</th></tr></thead><tbody id="matches"></tbody></table></div>
+      <p class="caption">SMD is the absolute standardized mean difference; values below 0.1 are often used as a descriptive balance criterion. No pairs means post-match SMD is unavailable. Effects are descriptive and do not establish causality. For reused controls or variable-ratio matching, standard errors and confidence intervals are withheld.</p>
+    </section>
+  </div>
+</main>
+<script src="app.js" defer></script>
 </body>
 </html>

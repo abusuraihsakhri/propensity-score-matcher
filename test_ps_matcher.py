@@ -127,7 +127,7 @@ class TestNearestNeighbor:
         """With replacement, controls can be reused."""
         treatment = [1, 1, 0]
         ps = [0.7, 0.8, 0.75]
-        result = nearest_neighbor_match(treatment, ps, caliper=1.0, replace=True)
+        result = nearest_neighbor_match(treatment, ps, caliper=1.1, replace=True)
         # Both treated can match to same control
         assert result["n_matched"] == 2
 

@@ -25,6 +25,40 @@ import random
 from typing import List, Tuple, Dict, Any, Optional
 
 
+def _validate_data(treatment, covariates, outcome=None, labels=None):
+    """Fail explicitly on malformed observational data; never coerce missing values to zero."""
+    n = len(treatment)
+    if n == 0 or len(covariates) != n:
+        raise ValueError("Treatment and covariates must have equal, nonzero lengths")
+    if any(t not in (0, 1) for t in treatment):
+        raise ValueError("Treatment must contain only 0 and 1")
+    if not any(t == 1 for t in treatment) or not any(t == 0 for t in treatment):
+        raise ValueError("Both treated and control subjects are required")
+    p = len(covariates[0])
+    if any(len(row) != p for row in covariates):
+        raise ValueError("Every subject must have the same number of covariates")
+    if any(not isinstance(v, (int, float)) or not math.isfinite(v)
+           for row in covariates for v in row):
+        raise ValueError("Covariates must be finite numbers without missing values")
+    if outcome is not None:
+        if len(outcome) != n or any(
+            not isinstance(v, (int, float)) or not math.isfinite(v) for v in outcome
+        ):
+            raise ValueError("Outcomes must contain one finite number per subject")
+    if labels is not None and len(labels) != p:
+        raise ValueError("Covariate labels must match the number of covariates")
+
+
+def _validate_scores(treatment, propensity_scores):
+    if len(treatment) != len(propensity_scores):
+        raise ValueError("Treatment and propensity scores must have equal lengths")
+    if any(t not in (0, 1) for t in treatment):
+        raise ValueError("Treatment must contain only 0 and 1")
+    if any(not isinstance(p, (int, float)) or not math.isfinite(p) or not 0 <= p <= 1
+           for p in propensity_scores):
+        raise ValueError("Propensity scores must be finite probabilities in [0, 1]")
+
+
 # ---------------------------------------------------------------------------
 # Logistic regression for propensity scores
 # ---------------------------------------------------------------------------
@@ -59,8 +93,9 @@ def logistic_regression(
         iterations : number of iterations
     """
     n = len(y)
-    if len(X) != n:
-        raise ValueError("X and y must have the same length")
+    _validate_data(y, X)
+    if not isinstance(max_iter, int) or max_iter < 1 or not math.isfinite(tol) or tol <= 0:
+        raise ValueError("max_iter must be positive and tol must be finite and positive")
 
     # Add intercept column
     X_aug = [[1.0] + row for row in X]
@@ -68,6 +103,7 @@ def logistic_regression(
 
     # Initialize beta to zeros
     beta = [0.0] * p
+    converged = False
 
     for iteration in range(max_iter):
         # Compute predicted probabilities
@@ -92,7 +128,15 @@ def logistic_regression(
         neg_grad = [-g for g in grad]
         try:
             delta = _solve_linear_system(hess, neg_grad)
-        except Exception:
+        except ValueError as exc:
+            if iteration == 0:
+                raise ValueError(
+                    "Propensity score regression has a singular design matrix; "
+                    "remove redundant covariates or reduce model complexity"
+                ) from exc
+            # Perfect/quasi separation can render the Hessian singular
+            # after several iterations. Retain the last finite estimate
+            # but make non-convergence explicit in the result.
             break
 
         beta_new = [beta[j] + delta[j] for j in range(p)]
@@ -100,6 +144,7 @@ def logistic_regression(
         # Check convergence
         if all(abs(delta[j]) < tol for j in range(p)):
             beta = beta_new
+            converged = True
             break
         beta = beta_new
 
@@ -120,6 +165,10 @@ def logistic_regression(
         "probabilities": probs,
         "log_likelihood": ll,
         "iterations": iteration + 1,
+        "converged": converged,
+        "warning": None if converged else (
+            "Logistic IRLS did not converge; possible separation or unstable model"
+        ),
     }
 
 
@@ -180,6 +229,11 @@ def nearest_neighbor_match(
         matched_control : indices of control subjects that were matched
         n_matched : number of matched pairs
     """
+    _validate_scores(treatment, propensity_scores)
+    if not isinstance(ratio, int) or ratio < 1:
+        raise ValueError("ratio must be a positive integer")
+    if not math.isfinite(caliper) or caliper < 0:
+        raise ValueError("caliper must be finite and non-negative")
     n = len(treatment)
     treated_idx = [i for i in range(n) if treatment[i] == 1]
     control_idx = [i for i in range(n) if treatment[i] == 0]
@@ -187,8 +241,8 @@ def nearest_neighbor_match(
     if not treated_idx or not control_idx:
         return {"matched_pairs": [], "matched_treated": [], "matched_control": [], "n_matched": 0}
 
-    # Compute caliper in terms of propensity score
-    # Use SD of logit(PS) * caliper
+    # Caliper and distance must both use logit(PS) units.
+    # Caliper = supplied multiple of the sample SD of logit(PS).
     logit_ps = [_logit(max(1e-6, min(1 - 1e-6, ps))) for ps in propensity_scores]
     sd_logit = _std(logit_ps)
     caliper_val = caliper * sd_logit
@@ -203,7 +257,7 @@ def nearest_neighbor_match(
         # Find closest control(s)
         candidates = []
         for ci in available_control:
-            dist = abs(propensity_scores[ti] - propensity_scores[ci])
+            dist = abs(logit_ps[ti] - logit_ps[ci])
             if dist <= caliper_val:
                 candidates.append((dist, ci))
 
@@ -248,6 +302,9 @@ def optimal_match(
     -------
     dict with matched pairs.
     """
+    _validate_scores(treatment, propensity_scores)
+    if math.isnan(caliper) or caliper < 0:
+        raise ValueError("caliper must be non-negative")
     n = len(treatment)
     treated_idx = [i for i in range(n) if treatment[i] == 1]
     control_idx = [i for i in range(n) if treatment[i] == 0]
@@ -255,12 +312,14 @@ def optimal_match(
     if not treated_idx or not control_idx:
         return {"matched_pairs": [], "matched_treated": [], "matched_control": [], "n_matched": 0}
 
-    # Compute all pairwise distances
+    # Match using the same standardized logit distance as nearest neighbor.
+    logits = [_logit(max(1e-6, min(1 - 1e-6, ps))) for ps in propensity_scores]
+    limit = caliper * _std(logits) if math.isfinite(caliper) else float("inf")
     distances = []
     for ti in treated_idx:
         for ci in control_idx:
-            dist = abs(propensity_scores[ti] - propensity_scores[ci])
-            if dist <= caliper:
+            dist = abs(logits[ti] - logits[ci])
+            if dist <= limit:
                 distances.append((dist, ti, ci))
 
     # Sort by distance (greedy)
@@ -308,9 +367,11 @@ def stratification_match(
     -------
     dict with keys:
         strata : list of stratum assignments
-        stratum_effects : treatment effect estimate per stratum
-        overall_effect : pooled treatment effect (ATE)
+        stratum_effects : group counts and mean propensity scores (not outcome effects)
     """
+    _validate_scores(treatment, propensity_scores)
+    if not isinstance(n_strata, int) or n_strata < 1 or not treatment:
+        raise ValueError("n_strata must be positive and data cannot be empty")
     n = len(treatment)
 
     # Sort by propensity score and assign strata
@@ -341,8 +402,8 @@ def stratification_match(
                 "stratum": s,
                 "n_treated": len(s_treated),
                 "n_control": len(s_control),
-                "mean_ps_treated": 0.0,
-                "mean_ps_control": 0.0,
+                "mean_ps_treated": None,
+                "mean_ps_control": None,
             })
 
     return {
@@ -371,7 +432,7 @@ def standardized_mean_difference(
     n_t = len(treated)
     n_c = len(control)
     if n_t == 0 or n_c == 0:
-        return 0.0
+        return float("nan")
 
     mean_t = sum(treated) / n_t
     mean_c = sum(control) / n_c
@@ -380,7 +441,7 @@ def standardized_mean_difference(
 
     pooled_sd = math.sqrt((var_t + var_c) / 2.0)
     if pooled_sd == 0:
-        return 0.0
+        return 0.0 if mean_t == mean_c else float("inf")
 
     return abs(mean_t - mean_c) / pooled_sd
 
@@ -409,8 +470,9 @@ def covariate_balance(
     -------
     dict with balance statistics for each covariate.
     """
+    _validate_data(treatment, covariates, labels=labels)
     n = len(treatment)
-    p = len(covariates[0]) if covariates else 0
+    p = len(covariates[0])
 
     if labels is None:
         labels = [f"X{i+1}" for i in range(p)]
@@ -425,19 +487,40 @@ def covariate_balance(
 
         smd_before = standardized_mean_difference(treated_vals, control_vals)
 
-        if matched_pairs:
-            matched_t = [covariates[ti][k] for ti, ci in matched_pairs]
-            matched_c = [covariates[ci][k] for ti, ci in matched_pairs]
-            smd_after = standardized_mean_difference(matched_t, matched_c)
-        else:
+        if matched_pairs is not None and len(matched_pairs) > 0:
+            # Use the same pre-matching denominator before/after.
+            # Each treated subject contributes once, even for variable-ratio matching.
+            def sample_variance(values):
+                mu = sum(values) / len(values)
+                return sum((v - mu) ** 2 for v in values) / max(1, len(values) - 1)
+
+            standardizer = math.sqrt(
+                (sample_variance(treated_vals) + sample_variance(control_vals)) / 2
+            )
+            groups = {}
+            for ti, ci in matched_pairs:
+                if treatment[ti] != 1 or treatment[ci] != 0:
+                    raise ValueError("Matched pairs must contain treated then control indices")
+                groups.setdefault(ti, []).append(ci)
+            matched_t_mean = sum(covariates[ti][k] for ti in groups) / len(groups)
+            matched_c_mean = sum(
+                sum(covariates[ci][k] for ci in controls) / len(controls)
+                for controls in groups.values()
+            ) / len(groups)
+            difference = abs(matched_t_mean - matched_c_mean)
+            smd_after = (difference / standardizer if standardizer > 0
+                         else (0.0 if difference == 0 else float("inf")))
+        elif matched_pairs is None:
             smd_after = smd_before
+        else:
+            smd_after = None  # No matched cohort: post-match balance is undefined.
 
         balance.append({
             "covariate": labels[k],
             "smd_before": round(smd_before, 4),
-            "smd_after": round(smd_after, 4),
+            "smd_after": None if smd_after is None else round(smd_after, 4),
             "balanced_before": smd_before < 0.1,
-            "balanced_after": smd_after < 0.1,
+            "balanced_after": smd_after is not None and smd_after < 0.1,
         })
 
     return {"balance": balance}
@@ -471,34 +554,46 @@ def estimate_treatment_effect(
     -------
     dict with effect estimate, SE, CI.
     """
+    if effect_type != "ATT":
+        raise ValueError("Matched treated-control differences estimate ATT, not ATC or ATE")
     if not matched_pairs:
-        return {"effect": 0.0, "se": 0.0, "ci_lower": 0.0, "ci_upper": 0.0, "n_pairs": 0}
+        return {"effect": 0.0, "se": None, "ci_lower": None,
+                "ci_upper": None, "n_pairs": 0, "effect_type": effect_type}
+    if len(outcome) != len(treatment) or any(not math.isfinite(x) for x in outcome):
+        raise ValueError("Outcome must have one finite number per subject")
+    if any(treatment[ti] != 1 or treatment[ci] != 0 for ti, ci in matched_pairs):
+        raise ValueError("Each matched pair must contain treated then control indices")
 
-    diffs = []
+    # A treated subject with multiple controls contributes once to ATT.
+    groups = {}
     for ti, ci in matched_pairs:
-        diffs.append(outcome[ti] - outcome[ci])
-
-    n_pairs = len(diffs)
-    mean_diff = sum(diffs) / n_pairs
-    var_diff = sum((d - mean_diff) ** 2 for d in diffs) / max(1, n_pairs - 1)
-    se = math.sqrt(var_diff / n_pairs)
-
-    z = 1.96
-    ci_lo = mean_diff - z * se
-    ci_hi = mean_diff + z * se
-
-    # t-statistic and p-value
-    t_stat = mean_diff / se if se > 0 else 0.0
-    p_value = 2.0 * (1.0 - _norm_cdf(abs(t_stat)))
-
+        groups.setdefault(ti, []).append(outcome[ci])
+    diffs = [
+        outcome[ti] - sum(controls) / len(controls)
+        for ti, controls in groups.items()
+    ]
+    mean_diff = sum(diffs) / len(diffs)
+    n_pairs = len(matched_pairs)
+    # Pair-level independent normal CI is inappropriate for reused controls
+    # and variable-ratio matching. Return descriptive ATT without a false SE.
+    independent = n_pairs == len(groups) == len({ci for _, ci in matched_pairs})
+    if independent and len(diffs) > 1:
+        var_diff = sum((d - mean_diff) ** 2 for d in diffs) / (len(diffs) - 1)
+        se = math.sqrt(var_diff / len(diffs))
+        ci_lo, ci_hi = mean_diff - 1.96 * se, mean_diff + 1.96 * se
+        t_stat = mean_diff / se if se > 0 else None
+        p_value = 2 * (1 - _norm_cdf(abs(t_stat))) if t_stat is not None else None
+    else:
+        se = ci_lo = ci_hi = t_stat = p_value = None
     return {
         "effect": round(mean_diff, 6),
-        "se": round(se, 6),
-        "ci_lower": round(ci_lo, 6),
-        "ci_upper": round(ci_hi, 6),
-        "t_statistic": round(t_stat, 4),
-        "p_value": round(p_value, 6),
+        "se": None if se is None else round(se, 6),
+        "ci_lower": None if ci_lo is None else round(ci_lo, 6),
+        "ci_upper": None if ci_hi is None else round(ci_hi, 6),
+        "t_statistic": None if t_stat is None else round(t_stat, 4),
+        "p_value": None if p_value is None else round(p_value, 6),
         "n_pairs": n_pairs,
+        "n_matched_treated": len(groups),
         "effect_type": effect_type,
     }
 
@@ -546,14 +641,18 @@ def propensity_score_match(
     -------
     dict with propensity scores, matching results, balance, and effect estimates.
     """
+    _validate_data(treatment, covariates, outcome, labels)
+    if not isinstance(ratio, int) or ratio < 1:
+        raise ValueError("ratio must be a positive integer")
     # Step 1: Estimate propensity scores
-    ps = estimate_propensity_scores(treatment, covariates)
+    ps_fit = logistic_regression(covariates, treatment)
+    ps = ps_fit["probabilities"]
 
     # Step 2: Match
     if method == "nearest":
         match_result = nearest_neighbor_match(treatment, ps, caliper=caliper, replace=replace, ratio=ratio)
     elif method == "optimal":
-        match_result = optimal_match(treatment, ps, caliper=caliper if caliper < 1 else float('inf'))
+        match_result = optimal_match(treatment, ps, caliper=caliper)
     elif method == "stratification":
         strat_result = stratification_match(treatment, ps, n_strata=n_strata)
         match_result = {"matched_pairs": [], "strata": strat_result}
@@ -566,11 +665,13 @@ def propensity_score_match(
 
     # Step 4: Treatment effect (if outcome provided)
     effect = None
-    if outcome and matched_pairs:
+    if outcome is not None and matched_pairs:
         effect = estimate_treatment_effect(outcome, treatment, matched_pairs)
 
     return {
         "propensity_scores": ps,
+        "ps_model_converged": ps_fit["converged"],
+        "ps_model_warning": ps_fit["warning"],
         "matching": match_result,
         "balance": balance,
         "effect": effect,
@@ -601,17 +702,21 @@ def process_csv(input_path: str, output_path: str, method: str = "nearest", cali
     outcome_col = _find_col(fieldnames, ["outcome", "y", "result", "response"])
     covariate_cols = [c for c in fieldnames if c != treatment_col and c != outcome_col]
 
-    treatment = [int(float(r[treatment_col])) for r in rows]
-    outcome = [float(r[outcome_col]) for r in rows] if outcome_col in fieldnames else None
-    covariates = []
-    for r in rows:
-        cov = []
-        for c in covariate_cols:
-            try:
-                cov.append(float(r[c]))
-            except (ValueError, KeyError):
-                cov.append(0.0)
-        covariates.append(cov)
+    def numeric(row, column, row_number):
+        raw = row.get(column)
+        try:
+            value = float(raw)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"Invalid or missing numeric value in column '{column}', row {row_number}") from exc
+        if not math.isfinite(value):
+            raise ValueError(f"Non-finite numeric value in column '{column}', row {row_number}")
+        return value
+
+    treatment = [numeric(r, treatment_col, i + 2) for i, r in enumerate(rows)]
+    outcome = ([numeric(r, outcome_col, i + 2) for i, r in enumerate(rows)]
+               if outcome_col is not None else None)
+    covariates = [[numeric(r, c, i + 2) for c in covariate_cols]
+                  for i, r in enumerate(rows)]
 
     result = propensity_score_match(
         treatment, covariates, outcome,
@@ -728,9 +833,14 @@ def summary(
     covariates: List[List[float]],
     outcome: Optional[List[float]] = None,
     labels: Optional[List[str]] = None,
+    method: str = "nearest",
+    caliper: float = 0.2,
+    replace: bool = False,
 ) -> str:
-    """Return a formatted summary of propensity score matching."""
-    result = propensity_score_match(treatment, covariates, outcome, labels=labels)
+    """Return a formatted summary using the requested matching configuration."""
+    result = propensity_score_match(treatment, covariates, outcome,
+                                    labels=labels, method=method,
+                                    caliper=caliper, replace=replace)
 
     lines = []
     lines.append("Propensity Score Matching Analysis")
@@ -738,20 +848,27 @@ def summary(
     lines.append(f"  Treated: {result['n_treated']}   Control: {result['n_control']}")
     lines.append(f"  Method: {result['method']}")
     lines.append(f"  Matched pairs: {result['matching'].get('n_matched', 0)}")
+    if result["ps_model_warning"]:
+        lines.append(f"  Model warning: {result['ps_model_warning']}")
     lines.append("")
     lines.append("  Covariate Balance:")
     lines.append(f"  {'Covariate':<15} {'SMD Before':>12} {'SMD After':>12} {'Balanced':>10}")
     lines.append("  " + "-" * 52)
     for b in result["balance"]["balance"]:
         bal = "Yes" if b["balanced_after"] else "No"
-        lines.append(f"  {b['covariate']:<15} {b['smd_before']:>12.4f} {b['smd_after']:>12.4f} {bal:>10}")
+        after = f"{b['smd_after']:.4f}" if b["smd_after"] is not None else "N/A"
+        lines.append(f"  {b['covariate']:<15} {b['smd_before']:>12.4f} {after:>12} {bal:>10}")
 
     if result["effect"]:
         lines.append("")
         lines.append(f"  Treatment Effect ({result['effect']['effect_type']}):")
         lines.append(f"    Effect: {result['effect']['effect']:.4f}")
-        lines.append(f"    SE:     {result['effect']['se']:.4f}")
-        lines.append(f"    95% CI: [{result['effect']['ci_lower']:.4f}, {result['effect']['ci_upper']:.4f}]")
-        lines.append(f"    p-value: {result['effect']['p_value']:.6f}")
+        if result["effect"]["se"] is None:
+            lines.append("    SE / CI: unavailable for non-independent or insufficient pairs")
+        else:
+            lines.append(f"    SE:     {result['effect']['se']:.4f}")
+            lines.append(f"    Approx. 95% CI: [{result['effect']['ci_lower']:.4f}, {result['effect']['ci_upper']:.4f}]")
+            if result["effect"]["p_value"] is not None:
+                lines.append(f"    Approx. normal p-value: {result['effect']['p_value']:.6f}")
 
     return "\n".join(lines)

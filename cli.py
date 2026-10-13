@@ -91,7 +91,9 @@ def main(argv=None):
         if args.json:
             print(json.dumps(result, indent=2, default=str))
         else:
-            print(summary(args.treatment, covariates, args.outcome, labels=args.labels))
+            print(summary(args.treatment, covariates, args.outcome, labels=args.labels,
+                          method=args.method, caliper=args.caliper,
+                          replace=args.replace))
         return 0
 
     elif args.command == "balance":
