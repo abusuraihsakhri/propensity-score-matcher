@@ -86,6 +86,8 @@
       <p class="caption" id="summary">Run an analysis to see results.</p>
       <h2>Covariate balance</h2>
       <div class="scroll"><table><thead><tr><th>Covariate</th><th>SMD before</th><th>SMD after</th></tr></thead><tbody id="balance"></tbody></table></div>
+      <h2>Propensity-score strata</h2>
+      <div class="scroll"><table><thead><tr><th>Stratum</th><th>Treated</th><th>Control</th><th>Mean PS (treated)</th><th>Mean PS (control)</th></tr></thead><tbody id="strata-table"></tbody></table></div>
       <h2>Pair indices (zero-based)</h2>
       <div class="scroll"><table><thead><tr><th>Treated</th><th>Control</th></tr></thead><tbody id="matches"></tbody></table></div>
       <p class="caption">SMD is the absolute standardized mean difference; values below 0.1 are often used as a descriptive balance criterion. No pairs means post-match SMD is unavailable. Effects are descriptive and do not establish causality. For reused controls or variable-ratio matching, standard errors and confidence intervals are withheld.</p>
