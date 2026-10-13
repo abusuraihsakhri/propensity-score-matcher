@@ -109,6 +109,10 @@ function render(data, result) {
     + (result.ps_model_warning ? ' WARNING: ' + result.ps_model_warning : '');
   rowsToTable('balance',result.balance.balance.map(v => [v.covariate,fmt(v.smd_before),fmt(v.smd_after)]));
   rowsToTable('matches',result.matching.matched_pairs || []);
+  const strata = result.matching.strata ? result.matching.strata.stratum_effects : [];
+  rowsToTable('strata-table',strata.map(v => [
+    v.stratum,v.n_treated,v.n_control,fmt(v.mean_ps_treated),fmt(v.mean_ps_control)
+  ]));
   resultForExport = {data,result};
   $('download').disabled = false;
 }
@@ -145,6 +149,7 @@ async function run() {
   $('summary').textContent = 'No current results.';
   rowsToTable('balance', []);
   rowsToTable('matches', []);
+  rowsToTable('strata-table', []);
   try {
     if ($('csv').value.length > 5 * 1024 * 1024) throw Error('Input exceeds the 5 MB limit.');
     const data = dataFromCsv($('csv').value);
