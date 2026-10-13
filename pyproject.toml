@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "propensity-score-matcher"
-version = "1.0.0"
+version = "1.0.1"
 description = "Propensity score matching for clinical and biomedical research"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
+dependencies = ["pydantic>=2.0,<3"]
 authors = [
     {name = "Propensity Score Matcher Contributors"}
 ]
@@ -25,7 +26,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-web = ["fastapi>=0.110", "uvicorn>=0.27"]
+web = ["fastapi>=0.110,<1", "uvicorn>=0.27,<1"]
 test = ["pytest>=7.0"]
 
 [project.scripts]
@@ -33,6 +34,7 @@ ps-matcher = "cli:main"
 
 [tool.setuptools]
 packages = ["agents"]
+py-modules = ["ps_matcher", "cli", "enrichment", "simulator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "test_ps_matcher.py"]
