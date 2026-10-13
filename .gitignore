@@ -34,3 +34,8 @@ tmp_test_out.csv
 # OS
 .DS_Store
 Thumbs.db
+
+# Local secrets (keep examples versioned)
+.env
+.env.*
+!.env.example
