@@ -489,9 +489,28 @@ def covariate_balance(
         smd_before = standardized_mean_difference(treated_vals, control_vals)
 
         if matched_pairs is not None and len(matched_pairs) > 0:
-            matched_t = [covariates[ti][k] for ti, ci in matched_pairs]
-            matched_c = [covariates[ci][k] for ti, ci in matched_pairs]
-            smd_after = standardized_mean_difference(matched_t, matched_c)
+            # Use the same pre-matching denominator before/after.
+            # Each treated subject contributes once, even for variable-ratio matching.
+            def sample_variance(values):
+                mu = sum(values) / len(values)
+                return sum((v - mu) ** 2 for v in values) / max(1, len(values) - 1)
+
+            standardizer = math.sqrt(
+                (sample_variance(treated_vals) + sample_variance(control_vals)) / 2
+            )
+            groups = {}
+            for ti, ci in matched_pairs:
+                if treatment[ti] != 1 or treatment[ci] != 0:
+                    raise ValueError("Matched pairs must contain treated then control indices")
+                groups.setdefault(ti, []).append(ci)
+            matched_t_mean = sum(covariates[ti][k] for ti in groups) / len(groups)
+            matched_c_mean = sum(
+                sum(covariates[ci][k] for ci in controls) / len(controls)
+                for controls in groups.values()
+            ) / len(groups)
+            difference = abs(matched_t_mean - matched_c_mean)
+            smd_after = (difference / standardizer if standardizer > 0
+                         else (0.0 if difference == 0 else float("inf")))
         elif matched_pairs is None:
             smd_after = smd_before
         else:
