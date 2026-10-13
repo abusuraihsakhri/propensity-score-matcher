@@ -627,7 +627,8 @@ def propensity_score_match(
     if not isinstance(ratio, int) or ratio < 1:
         raise ValueError("ratio must be a positive integer")
     # Step 1: Estimate propensity scores
-    ps = estimate_propensity_scores(treatment, covariates)
+    ps_fit = logistic_regression(covariates, treatment)
+    ps = ps_fit["probabilities"]
 
     # Step 2: Match
     if method == "nearest":
@@ -651,6 +652,8 @@ def propensity_score_match(
 
     return {
         "propensity_scores": ps,
+        "ps_model_converged": ps_fit["converged"],
+        "ps_model_warning": ps_fit["warning"],
         "matching": match_result,
         "balance": balance,
         "effect": effect,
@@ -827,6 +830,8 @@ def summary(
     lines.append(f"  Treated: {result['n_treated']}   Control: {result['n_control']}")
     lines.append(f"  Method: {result['method']}")
     lines.append(f"  Matched pairs: {result['matching'].get('n_matched', 0)}")
+    if result["ps_model_warning"]:
+        lines.append(f"  Model warning: {result['ps_model_warning']}")
     lines.append("")
     lines.append("  Covariate Balance:")
     lines.append(f"  {'Covariate':<15} {'SMD Before':>12} {'SMD After':>12} {'Balanced':>10}")
