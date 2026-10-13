@@ -33,9 +33,12 @@ test = ["pytest>=7.0"]
 ps-matcher = "cli:main"
 
 [tool.setuptools]
-packages = ["agents"]
+packages = ["agents", "web"]
 py-modules = ["ps_matcher", "cli", "enrichment", "simulator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "test_ps_matcher.py"]
 python_files = ["test_*.py"]
+
+[tool.setuptools.package-data]
+web = ["*.html", "*.js"]
