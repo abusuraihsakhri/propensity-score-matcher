@@ -120,12 +120,13 @@ function downloadCsv() {
   if (!resultForExport) return;
   const {data,result} = resultForExport;
   const pairs = result.matching.matched_pairs || [];
-  const headers = data.headers.concat(['propensity_score','matched_controls','stratum']);
+  const headers = data.headers.concat(['propensity_score','matched_indices','stratum']);
   const strata = result.matching.strata ? result.matching.strata.strata : null;
   const lines = [headers.map(escapedCsv).join(',')];
   for (let i=0;i<data.records.length;i++) {
-    const controls = pairs.filter(p => p[0] === i).map(p => p[1]).join(';');
-    const record = data.records[i].concat([result.propensity_scores[i],controls,strata ? strata[i] : '']);
+    const partners = pairs.filter(p => p[0] === i || p[1] === i)
+      .map(p => p[0] === i ? p[1] : p[0]).join(';');
+    const record = data.records[i].concat([result.propensity_scores[i],partners,strata ? strata[i] : '']);
     lines.push(record.map(escapedCsv).join(','));
   }
   const url = URL.createObjectURL(new Blob([lines.join('\r\n') + '\r\n'],{type:'text/csv;charset=utf-8'}));
@@ -138,7 +139,14 @@ async function run() {
   $('run').disabled = true;
   $('download').disabled = true;
   resultForExport = null;
+  $('treated').textContent = '—';
+  $('controls').textContent = '—';
+  $('pairs').textContent = '—';
+  $('summary').textContent = 'No current results.';
+  rowsToTable('balance', []);
+  rowsToTable('matches', []);
   try {
+    if ($('csv').value.length > 5 * 1024 * 1024) throw Error('Input exceeds the 5 MB limit.');
     const data = dataFromCsv($('csv').value);
     const caliper = Number($('caliper').value);
     const ratio = Number($('ratio').value);
@@ -158,7 +166,8 @@ async function run() {
         'd = json.loads(browser_payload)\n' +
         'result = ps_matcher.propensity_score_match(**d)\n' +
         'def safe(obj):\n' +
-        '    if isinstance(obj, float) and not math.isfinite(obj): return None\n' +
+        '    if isinstance(obj, float) and math.isinf(obj): return "Infinity"\n' +
+    '    if isinstance(obj, float) and not math.isfinite(obj): return None\n' +
         '    if isinstance(obj, dict): return {k: safe(v) for k,v in obj.items()}\n' +
         '    if isinstance(obj, (list,tuple)): return [safe(v) for v in obj]\n' +
         '    return obj\n' +
