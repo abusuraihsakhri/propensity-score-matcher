@@ -367,8 +367,7 @@ def stratification_match(
     -------
     dict with keys:
         strata : list of stratum assignments
-        stratum_effects : treatment effect estimate per stratum
-        overall_effect : pooled treatment effect (ATE)
+        stratum_effects : group counts and mean propensity scores (not outcome effects)
     """
     _validate_scores(treatment, propensity_scores)
     if not isinstance(n_strata, int) or n_strata < 1 or not treatment:
@@ -403,8 +402,8 @@ def stratification_match(
                 "stratum": s,
                 "n_treated": len(s_treated),
                 "n_control": len(s_control),
-                "mean_ps_treated": 0.0,
-                "mean_ps_control": 0.0,
+                "mean_ps_treated": None,
+                "mean_ps_control": None,
             })
 
     return {
