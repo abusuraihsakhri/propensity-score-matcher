@@ -105,7 +105,8 @@ function render(data, result) {
   const effect = result.effect ? ' Descriptive ATT: ' + fmt(result.effect.effect) + '.'
     + (result.effect.se === null ? ' Uncertainty not estimated.' : ' Approximate 95% CI: [' + fmt(result.effect.ci_lower) + ', ' + fmt(result.effect.ci_upper) + '].') : '';
   $('summary').textContent = 'Method: ' + result.method + '. Matched treated subjects: '
-    + new Set((result.matching.matched_pairs || []).map(p => p[0])).size + '.' + effect;
+    + new Set((result.matching.matched_pairs || []).map(p => p[0])).size + '.' + effect
+    + (result.ps_model_warning ? ' WARNING: ' + result.ps_model_warning : '');
   rowsToTable('balance',result.balance.balance.map(v => [v.covariate,fmt(v.smd_before),fmt(v.smd_after)]));
   rowsToTable('matches',result.matching.matched_pairs || []);
   resultForExport = {data,result};
