@@ -3,7 +3,7 @@ FastAPI REST API Server for Propensity Score Matcher.
 """
 from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from .base import SecurityException
@@ -62,6 +62,11 @@ def api_audit_logs():
 @app.exception_handler(SecurityException)
 async def blocked_identifier(request: Request, exc: SecurityException):
     return JSONResponse(status_code=400, content={"detail": "Input contains a potentially sensitive identifier"})
+
+
+@app.get("/ps_matcher.py", include_in_schema=False)
+def browser_matching_source():
+    return FileResponse(Path(__file__).resolve().parent.parent / "ps_matcher.py", media_type="text/x-python")
 
 
 # Mount last so API endpoints take precedence.
